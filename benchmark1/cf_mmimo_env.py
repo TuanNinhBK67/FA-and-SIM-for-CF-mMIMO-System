@@ -52,9 +52,14 @@ class overallEnv(gym.Env):
         # Total noise power over bandwidth
         self.noise_power_dbm = (self.noise_psd_dbm_hz + 10.0 * np.log10(self.bandwidth_hz) + self.noise_figure_db) #?
         self.noise_power_watts = (10.0 ** (self.noise_power_dbm / 10.0) * 1e-3)
-        
         self.ap_transmit_power_dBm = ap_transmit_power_dBm
         self.ap_transmit_power_watts = 10 ** (self.ap_transmit_power_dBm / 10.0) * 1e-3
+        
+        # Equal maximum-power allocation
+        self.allocated_powers = np.full((self.ap_nums, self.user_equipment_nums),self.ap_transmit_power_watts/ self.user_equipment_nums, dtype=np.float64)
+        self.consumed_power_per_ap = np.sum(self.allocated_powers, axis=1)
+        self.consumed_power = np.sum(self.consumed_power_per_ap)
+        
         self.ap_height_m = ap_height_m
         self.ue_height_m = ue_height_m
         self.path_loss_exp = path_loss_exp
@@ -88,19 +93,13 @@ class overallEnv(gym.Env):
         )
         
         #Action space : 
-        self.power_action_dim = (self.ap_nums * self.user_equipment_nums) # Power allocation p_{l,k}
+        self.power_action_dim = 0
         self.phase_action_dim = (self.ap_nums * self.layer_nums * self.total_element_per_layers) # SIM phase shifts phi_{l,m,n}
         self.fa_action_dim = (2 * self.ap_nums * self.antenna_nums) # FA positions (x_{l,u}, y_{l,u})
-        self.action_dim = (self.power_action_dim + self.phase_action_dim + self.fa_action_dim)
+        self.action_dim = (self.phase_action_dim + self.fa_action_dim)
         
-        self.power_action_start = 0
-        self.power_action_end = self.power_action_dim
-
-        self.phase_action_start = self.power_action_end
-        self.phase_action_end = (
-            self.phase_action_start
-            + self.phase_action_dim
-        )
+        self.phase_action_start = 0
+        self.phase_action_end = (self.phase_action_dim)
 
         self.fa_action_start = self.phase_action_end
         self.fa_action_end = (
@@ -402,19 +401,19 @@ class overallEnv(gym.Env):
         action = np.clip(action, -1.0, 1.0) # Safety clipping
         
         # power action
-        power_action = action[self.power_action_start:self.power_action_end]
-        power_action = power_action.reshape(L,K)
-        power_fraction = (power_action + 1.0) / 2.0 # Map [-1, 1] -> [0, 1]
-        allocated_powers = np.zeros((L, K), dtype=np.float64)
+        # power_action = action[self.power_action_start:self.power_action_end]
+        # power_action = power_action.reshape(L,K)
+        # power_fraction = (power_action + 1.0) / 2.0 # Map [-1, 1] -> [0, 1]
+        # allocated_powers = np.zeros((L, K), dtype=np.float64)
 
-        for l in range(L):
-            power_l = power_fraction[l].copy()
-            total_fraction = np.sum(power_l)
+        # for l in range(L):
+        #     power_l = power_fraction[l].copy()
+        #     total_fraction = np.sum(power_l)
 
-            if total_fraction > 1.0:
-                power_l = (power_l /total_fraction)
+        #     if total_fraction > 1.0:
+        #         power_l = (power_l /total_fraction)
 
-            allocated_powers[l] = (self.ap_transmit_power_watts * power_l)
+        #     allocated_powers[l] = (self.ap_transmit_power_watts * power_l)
 
         #Sim phase action
         phase_action = action[self.phase_action_start:self.phase_action_end]
@@ -427,13 +426,13 @@ class overallEnv(gym.Env):
         fa_action = fa_action.reshape(L, 2, U)
         fa_positions = (self.FA_region_size / 2.0) * fa_action # Map [-1,1] -> [-FA_region_size/2, FA_region_size/2]
 
-        return (allocated_powers, phase_shift_matrix, fa_positions)
+        return (phase_shift_matrix, fa_positions)
 
     def step(self, action: np.ndarray):
         self.current_step += 1
-        (self.allocated_powers, self.phase_shift_matrix, proposed_fa_positions) = self._decode_action(action)
-        self.consumed_power_per_ap = np.sum(self.allocated_powers,axis=1)
-        self.consumed_power = np.sum(self.consumed_power_per_ap)
+        (self.phase_shift_matrix, proposed_fa_positions) = self._decode_action(action)
+        # self.consumed_power_per_ap = np.sum(self.allocated_powers,axis=1)
+        # self.consumed_power = np.sum(self.consumed_power_per_ap)
         (self.fa_feasible, self.fa_violation_count, self.fa_min_pair_distance) = self.check_fa_feasibility(proposed_fa_positions)
         if self.fa_feasible:
             self.FA_position = proposed_fa_positions

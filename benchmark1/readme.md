@@ -1,0 +1,1 @@
+IN CASE: EQUAL POWER - all UE receive the same level of power 

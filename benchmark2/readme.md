@@ -1,0 +1,1 @@
+IN CASE: The fixed antenna position with dis = lambda / 2

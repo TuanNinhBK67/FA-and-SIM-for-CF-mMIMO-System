@@ -27,25 +27,25 @@ class PPOConfig:
     # Training
     total_timesteps: int = 2_000_000 #2_000_000 - code goc --> total_timesteps / max_episode_steps = episode
     num_envs: int = 1 #1
-    num_steps: int = 2048 #128 - code goc
-    learning_rate: float = 1e-3 #1e-4
+    num_steps: int = 1024 #128 - code goc
+    learning_rate: float = 3e-4 #1e-4
     anneal_lr: bool = True
 
     # PPO
     gamma: float = 0.9 #0.99
     gae_lambda: float = 0.95
-    num_minibatches: int = 32 # 8
+    num_minibatches: int = 128 # 8
     update_epochs: int = 10 
     clip_coef: float = 0.4 # 0.2
     norm_adv: bool = True
     clip_vloss: bool = True
-    ent_coef: float = 1e-4 #1e-3
+    ent_coef: float = 0.0 #1e-3
     vf_coef: float = 0.5
     max_grad_norm: float = 0.5
     target_kl: float = None #0.015
 
     # Logging / saving
-    run_name: str = "ppo_cfmmimo"
+    run_name: str = "ppo_cfmmimo_equal_power"
     log_dir: str = "runs"
     checkpoint_dir: str = "checkpoints"
     save_interval: int = 50

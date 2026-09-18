@@ -45,7 +45,7 @@ class PPOConfig:
     target_kl: float = None #0.015
 
     # Logging / saving
-    run_name: str = "ppo_cfmmimo"
+    run_name: str = "ppo_cfmmimo_random_phase_shift"
     log_dir: str = "runs"
     checkpoint_dir: str = "checkpoints"
     save_interval: int = 50

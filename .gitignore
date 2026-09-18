@@ -1,0 +1,3 @@
+
+# TensorBoard event logs
+events.out.tfevents.*

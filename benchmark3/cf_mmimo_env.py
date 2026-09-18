@@ -89,20 +89,20 @@ class overallEnv(gym.Env):
         
         #Action space : 
         self.power_action_dim = (self.ap_nums * self.user_equipment_nums) # Power allocation p_{l,k}
-        self.phase_action_dim = (self.ap_nums * self.layer_nums * self.total_element_per_layers) # SIM phase shifts phi_{l,m,n}
+        # self.phase_action_dim = (self.ap_nums * self.layer_nums * self.total_element_per_layers) # SIM phase shifts phi_{l,m,n}
         self.fa_action_dim = (2 * self.ap_nums * self.antenna_nums) # FA positions (x_{l,u}, y_{l,u})
-        self.action_dim = (self.power_action_dim + self.phase_action_dim + self.fa_action_dim)
+        self.action_dim = (self.power_action_dim + self.fa_action_dim)
         
         self.power_action_start = 0
         self.power_action_end = self.power_action_dim
 
-        self.phase_action_start = self.power_action_end
-        self.phase_action_end = (
-            self.phase_action_start
-            + self.phase_action_dim
-        )
+        # self.phase_action_start = self.power_action_end
+        # self.phase_action_end = (
+        #     self.phase_action_start
+        #     + self.phase_action_dim
+        # )
 
-        self.fa_action_start = self.phase_action_end
+        self.fa_action_start = self.power_action_end
         self.fa_action_end = (
             self.fa_action_start
             + self.fa_action_dim
@@ -417,41 +417,88 @@ class overallEnv(gym.Env):
             allocated_powers[l] = (self.ap_transmit_power_watts * power_l)
 
         #Sim phase action
-        phase_action = action[self.phase_action_start:self.phase_action_end]
-        phase_action = phase_action.reshape(L, M, N)
-        phase_shift_matrix = (np.pi * (phase_action + 1.0)) # Map [-1, 1] -> [0, 2*pi)
-        phase_shift_matrix = np.mod(phase_shift_matrix, 2.0 * np.pi)
+        # phase_action = action[self.phase_action_start:self.phase_action_end]
+        # phase_action = phase_action.reshape(L, M, N)
+        # phase_shift_matrix = (np.pi * (phase_action + 1.0)) # Map [-1, 1] -> [0, 2*pi)
+        # phase_shift_matrix = np.mod(phase_shift_matrix, 2.0 * np.pi)
 
         #Fa position action
         fa_action = action[self.fa_action_start:self.fa_action_end]
         fa_action = fa_action.reshape(L, 2, U)
         fa_positions = (self.FA_region_size / 2.0) * fa_action # Map [-1,1] -> [-FA_region_size/2, FA_region_size/2]
 
-        return (allocated_powers, phase_shift_matrix, fa_positions)
+        return (allocated_powers, fa_positions)
 
     def step(self, action: np.ndarray):
         self.current_step += 1
-        (self.allocated_powers, self.phase_shift_matrix, proposed_fa_positions) = self._decode_action(action)
-        self.consumed_power_per_ap = np.sum(self.allocated_powers,axis=1)
-        self.consumed_power = np.sum(self.consumed_power_per_ap)
-        (self.fa_feasible, self.fa_violation_count, self.fa_min_pair_distance) = self.check_fa_feasibility(proposed_fa_positions)
+        (
+            self.allocated_powers,
+            proposed_fa_positions
+        ) = self._decode_action(action)
+
+        self.consumed_power_per_ap = np.sum(
+            self.allocated_powers,
+            axis=1
+        )
+
+        self.consumed_power = np.sum(
+            self.consumed_power_per_ap
+        )
+
+        (
+            self.fa_feasible,
+            self.fa_violation_count,
+            self.fa_min_pair_distance
+        ) = self.check_fa_feasibility(
+            proposed_fa_positions
+        )
+
         if self.fa_feasible:
-            self.FA_position = proposed_fa_positions
-        self.H_l = (self.calculate_path_between_ap_sim(self.FA_position, self.element_position_matrix)) #FA position change
-        self.B_l = (self.calculate_sim_transfer_matrix(self.phase_shift_matrix)) #phase-shift change
+            self.FA_position = (
+                proposed_fa_positions
+            )
+        self.H_l = (
+            self.calculate_path_between_ap_sim(
+                self.FA_position,
+                self.element_position_matrix
+            )
+        )
+
+        # Equivalent channel
         self.h_user = self.get_channel()
-        observation = self._get_obs(h_user=self.h_user)
-        (self.user_sinr, self.user_data_rates, total_data_rates) = self._calculate_rates()
-        #Condition about FA position
+
+        observation = self._get_obs(
+            h_user=self.h_user
+        )
+
+        (
+            self.user_sinr,
+            self.user_data_rates,
+            total_data_rates
+        ) = self._calculate_rates()
+
+        # Hard FA constraint
         if self.fa_feasible:
-            self.reward = float(total_data_rates)
+            self.reward = float(
+                total_data_rates
+            )
         else:
             self.reward = 0.0
+
         terminated = False
-        truncated = self.current_step >= self.max_episode_steps
-        
-        info = self._get_info()# print("info", info)
-        return observation, self.reward, terminated, truncated, info
+        truncated = (
+            self.current_step >= self.max_episode_steps
+        )
+
+        info = self._get_info()
+
+        return (
+            observation,
+            self.reward,
+            terminated,
+            truncated,
+            info
+        )
     
     def reset(self, seed: Optional[int] = None, options: Optional[dict] = None):
         super().reset(seed=seed)
